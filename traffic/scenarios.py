@@ -1,7 +1,7 @@
 import random
 
 from .control import Signal, StopSign
-from .demand import Spawner
+from .demand import Spawner, uniform_demand
 from .models import IDM
 from .network import LANE_WIDTH, Network
 from .sim import Simulation, Vehicle
@@ -48,12 +48,15 @@ def grid(
     stub: float = 100.0,
     speed_limit: float = 13.4,
     model: IDM = URBAN,
+    demand: dict[tuple[str, str], float] | None = None,
     seed: int = 0,
     dt: float = 0.1,
 ) -> Simulation:
     """rows x cols of controlled intersections on a street grid. Every edge intersection has a
     stub road out to a boundary node, which acts as source and sink. control: signal (fixed),
-    actuated, stop, or none. rate is vehicles/second entering at each boundary node."""
+    actuated, stop, or none. demand is an origin-destination matrix {(origin, dest): veh/s}
+    over boundary nodes (s0.., N0.., w0.., e0..); by default every boundary node sends `rate`
+    vehicles/second spread evenly over all the others."""
     rng = random.Random(seed)
     net = Network()
 
@@ -100,8 +103,10 @@ def grid(
                 node.control = StopSign()
 
     sim = Simulation(net, dt=dt, seed=seed)
-    stub_ids = [s[0] for s in stubs]
-    for sid, _, _, inner in stubs:
-        dests = [s for s in stub_ids if s != sid]
-        sim.spawners.append(Spawner(f"{sid}>{inner}", rate, dests, model, rng))
+    if demand is None:
+        demand = uniform_demand([s[0] for s in stubs], rate)
+    sim.spawners = Spawner.from_demand(demand, model, rng)
     return sim
+
+
+SCENARIOS = {"ring": ring_road, "grid": grid}

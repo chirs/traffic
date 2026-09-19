@@ -29,6 +29,9 @@ class Vehicle:
     route: list[str] = field(default_factory=list)  # road ids, starting with the current one
     route_index: int = 0
     lc_timer: float = 0.0
+    entered_at: float = 0.0
+    exited_at: float | None = None
+    distance: float = 0.0  # metres driven since entering
 
     @property
     def next_road(self) -> str | None:
@@ -75,6 +78,7 @@ class Simulation:
         self.vehicles: dict[int, Vehicle] = {}
         self.exited: list[Vehicle] = []
         self.spawners: list = []
+        self.transitions: list[tuple[Vehicle, str, str | None]] = []  # last step's road changes
         self._next_id = 0
         self._pending: dict[str, list] = {}
 
@@ -87,6 +91,7 @@ class Simulation:
         v.road, v.lane = road, lane
         v.route = route if route is not None else [road]
         v.route_index = 0
+        v.entered_at = self.time
         self.vehicles[v.id] = v
         self.lanes[road][lane].vehicles.append(v)
         self.lanes[road][lane].sort()
@@ -122,7 +127,9 @@ class Simulation:
                 v.accel = max(a, -MAX_DECEL)
         for v in self.vehicles.values():
             new_speed = max(0.0, v.speed + v.accel * dt)
-            v.position += 0.5 * (v.speed + new_speed) * dt
+            moved = 0.5 * (v.speed + new_speed) * dt
+            v.position += moved
+            v.distance += moved
             v.speed = new_speed
             v.lc_timer -= dt
         self._transitions()
@@ -246,6 +253,7 @@ class Simulation:
         return a_new - v.accel - POLITENESS * follower_cost
 
     def _transitions(self) -> None:
+        self.transitions = []
         touched: set[Lane] = set()
         for lane in self.all_lanes():
             road = lane.road
@@ -261,7 +269,9 @@ class Simulation:
                     staying.append(v)
                     continue
                 nxt = v.next_road
+                self.transitions.append((v, road.id, nxt))
                 if nxt is None:
+                    v.exited_at = self.time + self.dt
                     del self.vehicles[v.id]
                     self.exited.append(v)
                     continue

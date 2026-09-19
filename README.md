@@ -34,8 +34,10 @@ stop-and-go waves from a tiny perturbation.
 - `traffic/network.py` — `Network` of `Node`s and directed `Road`s (lanes, speed limits, node radius), shortest paths
 - `traffic/control.py` — intersection control: `Signal` (fixed or actuated) and all-way `StopSign`
 - `traffic/sim.py` — `Vehicle`, `Lane`, `Simulation`: car following, lookahead across nodes, MOBIL-style lane changes, route transitions
-- `traffic/demand.py` — `Spawner` (Poisson arrivals, routed by shortest path)
-- `traffic/scenarios.py` — scenario builders (`ring_road`, `grid`)
+- `traffic/demand.py` — origin-destination `Demand`, `Spawner` (Poisson arrivals, routed by shortest path)
+- `traffic/metrics.py` — `Metrics` collector (delay, throughput, queues)
+- `traffic/experiment.py` — `sweep` over parameters and seeds, CSV output
+- `traffic/scenarios.py` — scenario builders (`ring_road`, `grid`) and the `SCENARIOS` registry
 - `traffic/trace.py` — `TraceWriter`
 - `traffic/__main__.py` — CLI
 - `www/core.js` — pure trace logic (indexing, interpolation, road geometry, colour ramp); tested with `node --test`

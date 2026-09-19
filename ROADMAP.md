@@ -11,12 +11,6 @@ it back. No server needed for playback, so the viewer deploys statically.
 Network and trace formats are plain JSON and are the contract between the
 core, the viewer, and the map repos.
 
-## Demand and experiments
-
-- [ ] Origin/destination matrix (spawners currently pick a uniform random exit)
-- [ ] Metrics: throughput, mean delay, queue length per edge and intersection
-- [ ] Monte Carlo runner: sweep seeds and parameters, aggregate to CSV/parquet
-
 ## Real Dallas
 
 - [ ] OSM import via `osmnx` into the network format
@@ -24,6 +18,13 @@ core, the viewer, and the map repos.
 - [ ] Map tiles under the canvas in the viewer
 - [ ] `Rules` object for jurisdiction behavior (speed limits, right on red, priority); Dallas first
 - [ ] Netherlands and New York rule sets
+
+## Experiments
+
+- [ ] Time-varying demand (peak profiles) and per-trip departure-time output
+- [ ] Route choice under congestion (currently free-flow shortest path only)
+- [ ] Viewer: colour roads by metrics (mean speed, queue) from a summary file
+- [ ] Parquet output once pandas/pyarrow is worth adding
 
 ## Intersections
 

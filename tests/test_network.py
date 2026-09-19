@@ -30,7 +30,7 @@ def test_grid_shape():
             assert len(net.in_roads(node.id)) == 4
             assert isinstance(node.control, Signal)
             assert all(len(p) == 2 for p in node.control.phases)
-    assert len(sim.spawners) == 10
+    assert len(sim.spawners) == 10  # one per boundary node
 
 
 def test_grid_controls():
