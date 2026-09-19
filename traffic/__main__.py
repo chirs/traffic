@@ -33,7 +33,7 @@ def main() -> None:
     g.add_argument("--rate", type=float, default=0.08, help="vehicles/s per boundary entry")
 
     o = sub.add_parser("place", help="real streets from OpenStreetMap")
-    o.add_argument("--name", dest="place", choices=sorted(PLACES), default="oak_cliff")
+    o.add_argument("--name", dest="place", choices=sorted(PLACES), default="vernon_ferndale")
     o.add_argument("--rules", choices=["dallas", "new_york", "netherlands"], default="dallas")
     o.add_argument("--rate", type=float, default=0.5, help="total vehicles/s entering the area")
 

@@ -11,9 +11,10 @@ B_SAFE = 4.0  # max deceleration imposed on anyone by a lane change, m/s^2
 POLITENESS = 0.3
 A_THRESHOLD = 0.2  # m/s^2 of net gain needed to bother changing
 LC_COOLDOWN = 3.0  # seconds between lane changes by one vehicle
-LC_KEEP_OUT = 20.0  # no lane changes within this many metres of a road's end
+LC_KEEP_OUT = 20.0  # no lane changes within this many metres of a road's start or end
 MAX_DECEL = 9.0  # m/s^2: physical braking limit
 STOP_MARGIN = 1.0  # metres short of a stop line that vehicles aim to halt (IDM creeps otherwise)
+LOOKAHEAD = 80.0  # metres: how far past the end of its road a vehicle looks along its route
 
 
 @dataclass
@@ -169,26 +170,28 @@ class Simulation:
         return self._downstream(v, lane.road, lane.index)
 
     def _downstream(self, v: Vehicle, road: Road, lane_index: int) -> tuple[float, float]:
-        """Leader seen past the end of `road` from `lane_index`: first vehicle on the next road,
-        a competing entrant from another approach, or the stop line if the control says stop."""
+        """Leader seen past the end of `road` from `lane_index`, walking the route up to
+        LOOKAHEAD metres: the first vehicle on a later road, a competing entrant from another
+        approach at a node, or a stop line where a control says stop."""
         dist = road.length - v.position
-        nxt = v.next_road
         best_gap, best_speed = math.inf, 0.0
-        control = self.network.nodes[road.dst].control if road.dst else None
-        if control is not None and control.must_stop(v, dist, self):
-            best_gap = dist + v.model.min_gap - STOP_MARGIN
-        if nxt is not None:
-            nroad = self.network.roads[nxt]
-            target = min(lane_index, nroad.lanes - 1)
-            vs = self.lanes[nxt][target].vehicles
-            if vs:
-                lead = vs[0]
-                g = dist + lead.position - lead.length
+        cur, lane, ri = road, lane_index, v.route_index
+        while True:
+            node = self.network.nodes[cur.dst] if cur.dst else None
+            control = node.control if node else None
+            if control is not None and control.must_stop(v, dist, self, cur.id):
+                g = dist + v.model.min_gap - STOP_MARGIN
                 if g < best_gap:
-                    best_gap, best_speed = g, lead.speed
+                    best_gap, best_speed = g, 0.0
+                break
+            nxt = v.route[ri + 1] if ri + 1 < len(v.route) else None
+            if nxt is None:
+                break
+            nroad = self.network.roads[nxt]
+            target = min(lane, nroad.lanes - 1)
             # Competing entrants from other approaches heading into the same lane: whoever is
             # closer to the node goes first. Entrants held at their own stop line don't count.
-            for u, du, unxt, utarget in self._pending.get(road.dst, ()):
+            for u, du, unxt, utarget in self._pending.get(cur.dst, ()):
                 if u is v or unxt != nxt or utarget != target:
                     continue
                 if du > dist or (du == dist and u.id > v.id):
@@ -198,7 +201,35 @@ class Simulation:
                 g = dist - du - u.length
                 if g < best_gap:
                     best_gap, best_speed = g, u.speed
+            vs = self.lanes[nxt][target].vehicles
+            if vs:
+                lead = vs[0]
+                g = dist + lead.position - lead.length
+                if g < best_gap:
+                    best_gap, best_speed = g, lead.speed
+                break
+            if dist + nroad.length > LOOKAHEAD:
+                break
+            dist += nroad.length
+            cur, lane, ri = nroad, target, ri + 1
         return best_gap, best_speed
+
+    def merge_clear(
+        self,
+        node_id: str,
+        target: str,
+        exclude: Vehicle,
+        gap_time: float = 4.0,
+        min_gap: float = 12.0,
+    ) -> bool:
+        """No other vehicle approaching `node_id` and bound for road `target` is within
+        gap_time seconds (or min_gap metres) of the node."""
+        for u, du, unxt, _ in self._pending.get(node_id, ()):
+            if u is exclude or unxt != target:
+                continue
+            if du < min_gap or (u.speed > 0.5 and du / u.speed < gap_time):
+                return False
+        return True
 
     def _lane_changes(self) -> None:
         for rid, lanes in self.lanes.items():
@@ -209,7 +240,7 @@ class Simulation:
                 for v in list(lane.vehicles):
                     if v.lc_timer > 0 or road.length - v.position < LC_KEEP_OUT:
                         continue
-                    if v.position < v.length:
+                    if v.position - v.length < min(LC_KEEP_OUT, road.length / 3):
                         continue
                     best, best_target = A_THRESHOLD, None
                     for target in (v.lane - 1, v.lane + 1):

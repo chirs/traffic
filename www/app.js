@@ -7,7 +7,7 @@
   const css = getComputedStyle(document.documentElement);
   const tok = n => css.getPropertyValue(n).trim();
   const PAL = {
-    bg: tok('--bg'), road: tok('--road'), edge: tok('--edge'), lane: tok('--lane'), grid: tok('--grid'),
+    bg: tok('--bg'), road: tok('--road'), roadOnMap: tok('--road-on-map'), edge: tok('--edge'), lane: tok('--lane'), grid: tok('--grid'),
     line: tok('--line'), node: tok('--node'),
     stop: tok('--v-stop'), slow: tok('--v-slow'), free: tok('--v-free'), brake: tok('--brake'),
     sigG: tok('--sig-g'), sigY: tok('--sig-y'), sigR: tok('--sig-r'), sigS: tok('--sig-s'), sigP: tok('--sig-p'),
@@ -19,7 +19,7 @@
   // through an inverting filter so the basemap stays dark under the roads.
   const TILE_URL = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
   const TILE_FILTER = 'invert(0.92) hue-rotate(180deg) saturate(0.25) brightness(0.8)';
-  const TILE_ALPHA = 0.75, MAX_TILES = 160;
+  const TILE_ALPHA = 0.55, MAX_TILES = 160;
   const LANE_W = C.LANE_W, CAR_W = 2.0, RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
 
   const S = {
@@ -177,7 +177,8 @@
   function drawRoad(ctx, road, sc) {
     const half = (road.lanes * LANE_W) / 2;
     ctx.lineCap = 'butt';
-    ctx.strokeStyle = PAL.road; ctx.lineWidth = road.lanes * LANE_W * sc;
+    ctx.strokeStyle = S.proj && S.tiles ? PAL.roadOnMap : PAL.road;
+    ctx.lineWidth = Math.max(1.5, road.lanes * LANE_W * sc);
     strokePath(ctx, road, half);
     if (sc > 0.6) {
       ctx.strokeStyle = PAL.edge; ctx.lineWidth = 1;

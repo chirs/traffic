@@ -207,5 +207,56 @@ def test_signal_inferred_where_important_roads_cross():
     assert isinstance(build_network(osm, DALLAS).nodes["n2"].control, Signal)
     from dataclasses import replace
 
-    quiet = replace(DALLAS, infer_signals_min_class=None)
+    quiet = replace(DALLAS, infer_signals_major_class=None)
     assert isinstance(build_network(osm, quiet).nodes["n2"].control, Priority)
+    osm["elements"][5]["tags"]["highway"] = "tertiary"  # tertiary x tertiary: no signal assumed
+    assert isinstance(build_network(osm, DALLAS).nodes["n2"].control, StopSign)
+
+
+def test_right_on_red_waits_for_a_gap():
+    from traffic.control import Signal
+
+    net = Network()
+    for nid, x, y in [("s", 0, -100), ("x", 0, 0), ("n", 0, 100), ("w", -150, 0), ("e", 150, 0)]:
+        net.add_node(nid, x, y)
+    net.add_road("sx", "s", "x")
+    net.add_road("xn", "x", "n")
+    net.add_road("wx", "w", "x")
+    net.add_road("xe", "x", "e")
+    net.nodes["x"].control = Signal([{"wx"}], min_green=1000, right_on_red=True)
+    sim = Simulation(net)
+    turner = Vehicle(0, IDM(), position=95.0, speed=0.0)  # already at the line
+    through = Vehicle(1, IDM(desired_speed=15), position=100.0, speed=15.0)  # 50 m out, green
+    sim.add_vehicle(turner, "sx", route=["sx", "xe"])
+    sim.add_vehicle(through, "wx", route=["wx", "xe"])
+    order = []
+    min_gap = math.inf
+
+    def watch(s):
+        nonlocal min_gap
+        order.extend(v.id for v, _, _ in s.transitions)
+        min_gap = min(min_gap, s.min_gap())
+
+    sim.run(30.0, on_step=watch)
+    assert order[:2] == [1, 0], "the through vehicle went first"
+    assert min_gap >= 0
+
+
+def test_ways_are_clipped_to_the_bbox():
+    osm = {
+        "elements": [
+            node(1, 0, -5),
+            node(2, 0, -1),
+            node(3, 0, 0),
+            node(4, 0, 1),
+            node(5, 0, 6),
+            node(6, 1, 0),
+            node(7, -1, 0),
+            way(301, [1, 2, 3, 4, 5], highway="secondary"),
+            way(302, [6, 3, 7], highway="residential"),
+        ]
+    }
+    bbox = (LAT - 1.3 * DLAT, LON - 1.3 * DLON, LAT + 1.3 * DLAT, LON + 1.3 * DLON)
+    net = build_network(osm, DALLAS, bbox)
+    assert set(net.nodes) == {"n2", "n3", "n4", "n6", "n7"}, "nodes 1 and 5 lie outside"
+    assert set(net.boundary) == {"n2", "n4", "n6", "n7"}

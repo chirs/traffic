@@ -12,6 +12,12 @@ from .sim import Simulation, Vehicle
 DATA = Path(__file__).resolve().parent.parent / "data"
 PLACES = {
     # south, west, north, east
+    "vernon_ferndale": (
+        32.7195,
+        -96.8496,
+        32.7422,
+        -96.8240,
+    ),  # Illinois to 12th, centred on Vernon
     "oak_cliff": (32.742, -96.836, 32.756, -96.820),  # Bishop Arts and surroundings
 }
 
@@ -150,7 +156,7 @@ def osm_area(
     return sim
 
 
-def place(name: str = "oak_cliff", rules: Rules | str = DALLAS, **kw) -> Simulation:
+def place(name: str = "vernon_ferndale", rules: Rules | str = DALLAS, **kw) -> Simulation:
     return osm_area(PLACES[name], DATA / f"{name}.json", rules=rules, **kw)
 
 

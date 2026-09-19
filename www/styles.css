@@ -2,7 +2,7 @@
   --bg:#0e1218; --panel:#141a23d9; --line:#26303f;
   --text:#e8e6df; --faint:#8593a6; --dim:#5b6878; --amber:#f0a848;
   /* canvas tokens (read into the JS palette) */
-  --road:#272d37; --edge:#4a5566; --lane:#3a4453; --grid:#1c232e; --node:#2e3540;
+  --road:#272d37; --road-on-map:#5b6a80; --edge:#4a5566; --lane:#3a4453; --grid:#1c232e; --node:#2e3540;
   --v-stop:#e0584f; --v-slow:#f0a848; --v-free:#5fd0b8; --brake:#ff4d3d;
   --sig-g:#5fd07a; --sig-y:#f0c848; --sig-r:#e04848; --sig-s:#c04040; --sig-p:#8a7a48;
 }

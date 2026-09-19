@@ -13,7 +13,8 @@ core, the viewer, and the map repos.
 
 ## Real places
 
-- [ ] Check inferred signals and stop control against the ground in Oak Cliff; per-place overrides file
+- [ ] Check inferred signals and stop control against the ground around Vernon & Ferndale; per-place overrides file
+- [ ] US 67 and its ramps sit in the south-west corner of the Vernon box with no merge lanes or ramp metering
 - [ ] Merge sub-5 m segments left by node trimming (62 in Oak Cliff)
 - [ ] Turn restrictions from OSM relations; `turn:lanes`
 - [ ] Netherlands-style priority to the right at uncontrolled equal junctions

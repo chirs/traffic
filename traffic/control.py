@@ -58,19 +58,25 @@ class Signal:
     def state(self, road_id: str) -> str:
         return self.stage if road_id in self.phases[self.phase] else "r"
 
-    def must_stop(self, vehicle, dist: float, sim) -> bool:
-        s = self.state(vehicle.road)
+    def must_stop(self, vehicle, dist: float, sim, road_id: str | None = None) -> bool:
+        """Should `vehicle`, `dist` metres from the end of `road_id` (its own road by default),
+        treat that end as a stop line right now?"""
+        road_id = road_id or vehicle.road
+        s = self.state(road_id)
         if s == "g":
             return False
         if s == "r":
-            # Stopped at the line and turning right where that is allowed: may go once the
-            # merge onto the cross street is clear (the lookahead handles that part).
+            # Stopped at the line and turning right where that is allowed: may go once there
+            # is a gap in the traffic bound for the same road.
+            nxt = vehicle.next_road
             return not (
                 self.right_on_red
-                and vehicle.next_road is not None
+                and road_id == vehicle.road
+                and nxt is not None
                 and vehicle.speed < 0.5
                 and dist < 3.0
-                and sim.network.turn(vehicle.road, vehicle.next_road) == "right"
+                and sim.network.turn(road_id, nxt) == "right"
+                and sim.merge_clear(sim.network.roads[road_id].dst, nxt, vehicle)
             )
         if vehicle.speed < MOVING:
             return True
@@ -101,7 +107,7 @@ class StopSign:
     def state(self, road_id: str) -> str:
         return "s"
 
-    def must_stop(self, vehicle, dist: float, sim) -> bool:
+    def must_stop(self, vehicle, dist: float, sim, road_id: str | None = None) -> bool:
         if vehicle.id == self.granted:
             return False
         if dist < self.AT_LINE and vehicle.speed < 0.3 and vehicle.id not in self.queue:
@@ -126,8 +132,8 @@ class Priority:
     def state(self, road_id: str) -> str:
         return "m" if road_id in self.major else "p"
 
-    def must_stop(self, vehicle, dist: float, sim) -> bool:
-        if vehicle.road in self.major:
+    def must_stop(self, vehicle, dist: float, sim, road_id: str | None = None) -> bool:
+        if (road_id or vehicle.road) in self.major:
             return False
         for rid in self.major:
             road = sim.network.roads[rid]

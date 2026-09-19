@@ -35,9 +35,11 @@ class Rules:
     right_on_red: bool
     signal_min_green: float = 8.0
     signal_max_green: float = 35.0
-    # OSM often lacks traffic_signals nodes; assume a signal wherever the two most important
-    # roads meeting at a junction are both at least this class. None disables the guess.
-    infer_signals_min_class: str | None = "tertiary"
+    # OSM often lacks traffic_signals nodes; assume a signal where a road of at least
+    # `infer_signals_major_class` crosses one of at least `infer_signals_minor_class`.
+    # None disables the guess.
+    infer_signals_major_class: str | None = "secondary"
+    infer_signals_minor_class: str = "tertiary"
 
     def speed_for(self, kind: str) -> float:
         base = kind.removesuffix("_link")

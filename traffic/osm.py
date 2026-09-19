@@ -17,6 +17,7 @@ OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 USER_AGENT = "traffic-sim/0.1 (github.com/chirs/traffic)"
 EARTH_R = 6371008.8
 BOUNDARY_MARGIN = 40.0  # metres inside the bbox edge within which a dead end counts as an exit
+CLIP_MARGIN = 0.0003  # degrees (~30 m) of slack when clipping ways to the bbox
 
 BBox = tuple[float, float, float, float]  # south, west, north, east
 
@@ -89,6 +90,8 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
         and len(e["nodes"]) >= 2
         and all(n in coords for n in e["nodes"])
     ]
+    if bbox:
+        ways = clip_ways(ways, coords, bbox)
 
     if bbox:
         lat0, lon0 = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
@@ -163,10 +166,12 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
         osm_tags = node_tags.get(int(nid[1:]), {})
         phases = signal_phases(approaches)
         inferred = False
-        if rules.infer_signals_min_class is not None and len(phases) == 2:
+        if rules.infer_signals_major_class is not None and len(phases) == 2:
             by_id = {r.id: r for r in approaches}
-            axis_rank = [max(class_rank(by_id[rid].kind) for rid in ph) for ph in phases]
-            inferred = min(axis_rank) >= class_rank(rules.infer_signals_min_class)
+            axis_rank = sorted(max(class_rank(by_id[rid].kind) for rid in ph) for ph in phases)
+            inferred = axis_rank[1] >= class_rank(rules.infer_signals_major_class) and axis_rank[
+                0
+            ] >= class_rank(rules.infer_signals_minor_class)
         if osm_tags.get("highway") == "traffic_signals" or inferred:
             node.control = Signal(
                 phases,
@@ -195,6 +200,32 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
             if 1 <= degree <= 2 and near_edge:
                 net.boundary.append(nid)
     return net
+
+
+def clip_ways(ways: list[dict], coords: dict, bbox: BBox) -> list[dict]:
+    """Overpass returns whole ways that touch the bbox; keep only the runs of nodes inside it
+    (plus a little slack), each run as its own way. Runs shorter than two nodes are dropped."""
+    s, w, n, e = bbox
+    s, w, n, e = s - CLIP_MARGIN, w - CLIP_MARGIN, n + CLIP_MARGIN, e + CLIP_MARGIN
+
+    def inside(nid):
+        lat, lon = coords[nid]
+        return s <= lat <= n and w <= lon <= e
+
+    out = []
+    for way in ways:
+        run, piece = [], 0
+        for nid in way["nodes"] + [None]:
+            if nid is not None and inside(nid):
+                run.append(nid)
+                continue
+            if len(run) >= 2:
+                out.append(
+                    {**way, "id": way["id"] if piece == 0 else f"{way['id']}p{piece}", "nodes": run}
+                )
+                piece += 1
+            run = []
+    return out
 
 
 def signal_phases(approaches) -> list[set[str]]:

@@ -95,3 +95,27 @@ def test_grid_stop_and_two_lane_smoke():
     sim, min_gap = run_grid(rows=2, cols=2, lanes=2, control="actuated", rate=0.3, seed=3)
     assert min_gap >= 0 and len(sim.exited) > 20
     assert any(v.lane == 1 for v in list(sim.vehicles.values()) + sim.exited)
+
+
+def test_lookahead_sees_past_short_roads():
+    """A 1 m stub between two roads must not hide a queue on the road after it."""
+    net = Network()
+    for nid, x in [("a", 0), ("b", 200), ("c", 201), ("d", 400)]:
+        net.add_node(nid, x, 0)
+    net.add_road("ab", "a", "b", speed_limit=15)
+    net.add_road("bc", "b", "c", speed_limit=15)
+    net.add_road("cd", "c", "d", speed_limit=15)
+    sim = Simulation(net)
+    parked = Vehicle(0, IDM(desired_speed=0.01), position=6.0, speed=0.0)
+    sim.add_vehicle(parked, "cd", route=["cd"])
+    v = Vehicle(1, IDM(), position=5.0, speed=15.0)
+    sim.add_vehicle(v, "ab", route=["ab", "bc", "cd"])
+    min_gap = math.inf
+
+    def watch(s):
+        nonlocal min_gap
+        min_gap = min(min_gap, s.min_gap())
+
+    sim.run(40.0, on_step=watch)
+    assert min_gap >= 0
+    assert v.speed < 0.1 and v.position < 2.0, "halted just short of the parked car"
