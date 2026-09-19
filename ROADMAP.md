@@ -11,19 +11,9 @@ it back. No server needed for playback, so the viewer deploys statically.
 Network and trace formats are plain JSON and are the contract between the
 core, the viewer, and the map repos.
 
-## Network
-
-- [ ] Directed graph of roads; nodes are intersections
-- [ ] Routes as edge lists; vehicles transition between roads
-- [ ] Lane changing (MOBIL or simplified)
-- [ ] Intersection control: stop signs, fixed-cycle signals, actuated signals
-- [ ] Synthetic grid scenario
-- [ ] Viewer draws the network graph and signal states
-
 ## Demand and experiments
 
-- [ ] Origin/destination matrix with Poisson arrivals
-- [ ] Route choice by shortest path
+- [ ] Origin/destination matrix (spawners currently pick a uniform random exit)
 - [ ] Metrics: throughput, mean delay, queue length per edge and intersection
 - [ ] Monte Carlo runner: sweep seeds and parameters, aggregate to CSV/parquet
 
@@ -34,6 +24,13 @@ core, the viewer, and the map repos.
 - [ ] Map tiles under the canvas in the viewer
 - [ ] `Rules` object for jurisdiction behavior (speed limits, right on red, priority); Dallas first
 - [ ] Netherlands and New York rule sets
+
+## Intersections
+
+- [ ] Interior geometry: turn paths and crossing time instead of a zero-length node
+- [ ] Crossing-conflict handling at uncontrolled nodes (currently only merges are serialised)
+- [ ] Turn lanes: restrict which lanes may continue onto which next road
+- [ ] Signal offsets / coordination along a corridor
 
 ## Scale
 

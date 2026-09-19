@@ -8,11 +8,14 @@
   const tok = n => css.getPropertyValue(n).trim();
   const PAL = {
     bg: tok('--bg'), road: tok('--road'), edge: tok('--edge'), lane: tok('--lane'), grid: tok('--grid'),
+    line: tok('--line'), node: tok('--node'),
     stop: tok('--v-stop'), slow: tok('--v-slow'), free: tok('--v-free'), brake: tok('--brake'),
+    sigG: tok('--sig-g'), sigY: tok('--sig-y'), sigR: tok('--sig-r'), sigS: tok('--sig-s'),
     amber: tok('--amber'), faint: tok('--faint'), dim: tok('--dim'), text: tok('--text'),
   };
   const LUT = C.colorRamp([PAL.stop, PAL.slow, PAL.free], 64);
-  const LANE_W = 3.6, CAR_W = 2.2, RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
+  const SIG = { g: PAL.sigG, y: PAL.sigY, r: PAL.sigR, s: PAL.sigS };
+  const LANE_W = C.LANE_W, CAR_W = 2.0, RATES = [0.25, 0.5, 1, 2, 4, 8, 16];
 
   const S = {
     idx: null, t: 0, playing: true, rate: 1,
@@ -24,9 +27,12 @@
   function load(trace, name) {
     S.idx = C.index(trace);
     S.t = 0; S.playing = true; S.stripCache = null;
-    const r = S.idx.roads[0];
-    $('sub').textContent = `${name} · ${r.ring ? 'ring' : 'road'} ${r.length} m · ` +
-      `${trace.vehicles.length} vehicles · ${fmtTime(S.idx.duration)}`;
+    const rs = S.idx.roads, ring = rs.length === 1 && rs[0].ring;
+    const what = ring ? `ring ${rs[0].length} m` : `${S.idx.nodes.length} nodes · ${rs.length} roads`;
+    $('sub').textContent = `${name} · ${what} · ${trace.vehicles.length} vehicles · ${fmtTime(S.idx.duration)}`;
+    $('axis').textContent = ring
+      ? 'time → · position along road ↑ · click or drag to scrub'
+      : 'time → · mean speed (line) and vehicles on road (area) · click or drag to scrub';
     fitCamera();
     syncPlay();
   }
@@ -36,32 +42,20 @@
       .catch(err => { $('sub').textContent = `could not read ${file.name}: ${err.message}`; });
   }
 
-  // ---- geometry ------------------------------------------------------------
-  function worldBounds() {
-    const r = S.idx.roads[0];
-    if (r.ring) { const R = C.ringXY(0, r.length).R + LANE_W; return { x0: -R, y0: -R, x1: R, y1: R }; }
-    return { x0: 0, y0: -LANE_W * 3, x1: r.length, y1: LANE_W * 3 };
-  }
+  // ---- camera --------------------------------------------------------------
   function viewCentre() {
-    const bottom = $('.bottom') || document.querySelector('.bottom');
-    const bh = bottom.getBoundingClientRect().height + 18;
+    const bh = document.querySelector('.bottom').getBoundingClientRect().height + 18;
     return { cx: S.W / 2, cy: (S.H - bh + 70) / 2, availH: S.H - bh - 70 };
   }
   function fitCamera() {
     if (!S.idx) return;
-    const b = worldBounds(), v = viewCentre();
+    const b = S.idx.bounds, v = viewCentre();
     S.cam.scale = 0.9 * Math.min(S.W / (b.x1 - b.x0), v.availH / (b.y1 - b.y0));
     S.cam.x = (b.x0 + b.x1) / 2; S.cam.y = (b.y0 + b.y1) / 2;
   }
   function toScreen(wx, wy) {
     const v = viewCentre();
-    return { x: v.cx + (wx - S.cam.x) * S.cam.scale, y: v.cy + (wy - S.cam.y) * S.cam.scale };
-  }
-  function vehicleWorld(v) {
-    const road = S.idx.roads[v.road];
-    const centre = v.pos - v.length / 2;
-    if (road.ring) return C.ringXY(centre, road.length);
-    return { x: centre, y: 0, heading: 0 };
+    return { x: v.cx + (wx - S.cam.x) * S.cam.scale, y: v.cy - (wy - S.cam.y) * S.cam.scale };
   }
 
   // ---- scene ---------------------------------------------------------------
@@ -73,14 +67,17 @@
       ctx.fillText('no trace loaded', S.W / 2, S.H / 2);
       return;
     }
-    const road = S.idx.roads[0], sc = S.cam.scale;
-    drawRoad(ctx, road, sc);
+    const sc = S.cam.scale;
+    for (const road of S.idx.roads) drawRoad(ctx, road, sc);
+    drawNodes(ctx, sc);
     const vehicles = C.sample(S.idx, S.t);
     for (const v of vehicles) {
-      const w = vehicleWorld(v), p = toScreen(w.x, w.y);
+      const road = S.idx.roads[v.road];
+      const w = C.pointAt(road, v.pos - v.length / 2, v.lane, v.lateral);
+      const p = toScreen(w.x, w.y);
       const len = Math.max(v.length * sc, 4), wid = Math.max(CAR_W * sc, 2.5);
       ctx.save();
-      ctx.translate(p.x, p.y); ctx.rotate(w.heading);
+      ctx.translate(p.x, p.y); ctx.rotate(Math.atan2(-w.dy, w.dx));
       ctx.fillStyle = C.speedColor(LUT, v.speed, S.idx.vmax);
       ctx.beginPath(); ctx.roundRect(-len / 2, -wid / 2, len, wid, Math.min(2, wid / 3)); ctx.fill();
       if (v.accel < -0.6 && wid >= 3) {
@@ -93,38 +90,79 @@
     }
     updateHud(vehicles);
   }
-  function drawRoad(ctx, road, sc) {
-    ctx.lineCap = 'butt';
+
+  function strokePath(ctx, road, lateral) {
+    ctx.beginPath();
     if (road.ring) {
-      const R = C.ringXY(0, road.length).R, c = toScreen(0, 0);
-      ctx.strokeStyle = PAL.road; ctx.lineWidth = LANE_W * sc;
-      ctx.beginPath(); ctx.arc(c.x, c.y, R * sc, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = PAL.edge; ctx.lineWidth = 1;
-      for (const rr of [R - LANE_W / 2, R + LANE_W / 2]) {
-        ctx.beginPath(); ctx.arc(c.x, c.y, rr * sc, 0, Math.PI * 2); ctx.stroke();
+      const c = toScreen(0, 0), R = C.ringXY(0, road.length).R + lateral; // +lateral is to the right = inward
+      ctx.arc(c.x, c.y, (C.ringXY(0, road.length).R - lateral) * S.cam.scale, 0, Math.PI * 2);
+      void R;
+    } else {
+      const n = Math.max(2, road.pts.length);
+      for (let i = 0; i < n; i++) {
+        const s = (i / (n - 1)) * road.length;
+        const w = C.pointAt(road, s, road.lanes - 0.5, lateral); // centreline + lateral
+        const p = toScreen(w.x, w.y);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
       }
+    }
+    ctx.stroke();
+  }
+
+  function drawRoad(ctx, road, sc) {
+    const half = (road.lanes * LANE_W) / 2;
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = PAL.road; ctx.lineWidth = road.lanes * LANE_W * sc;
+    strokePath(ctx, road, half);
+    if (sc > 0.6) {
+      ctx.strokeStyle = PAL.edge; ctx.lineWidth = 1;
+      strokePath(ctx, road, 0);               // left edge / centreline
+      strokePath(ctx, road, 2 * half);        // kerb
+      if (road.lanes > 1) {
+        ctx.strokeStyle = PAL.lane; ctx.setLineDash([3 * sc, 6 * sc]);
+        for (let l = 1; l < road.lanes; l++) strokePath(ctx, road, l * LANE_W);
+        ctx.setLineDash([]);
+      }
+    }
+    if (road.ring) {
       // distance ticks every 100 m, labelled at 0
+      const c = toScreen(0, 0), R = C.ringXY(0, road.length).R;
       ctx.strokeStyle = PAL.lane; ctx.fillStyle = PAL.dim;
       ctx.font = '10px IBM Plex Mono, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (let s = 0; s < road.length; s += 100) {
-        const a = C.ringXY(s, road.length), r0 = (R + LANE_W / 2) * sc + 3, r1 = r0 + 6;
-        const ux = a.x / R, uy = a.y / R;
+        const a = C.ringXY(s, road.length), r0 = R * sc + 3, r1 = r0 + 6;
+        const ux = a.x / R, uy = -a.y / R;
         ctx.beginPath(); ctx.moveTo(c.x + ux * r0, c.y + uy * r0); ctx.lineTo(c.x + ux * r1, c.y + uy * r1); ctx.stroke();
         if (s === 0) ctx.fillText('0 m', c.x + ux * (r1 + 14), c.y + uy * (r1 + 14));
-      }
-    } else {
-      const a = toScreen(0, 0), b = toScreen(road.length, 0);
-      ctx.strokeStyle = PAL.road; ctx.lineWidth = LANE_W * sc;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = PAL.edge; ctx.lineWidth = 1;
-      for (const dy of [-LANE_W / 2, LANE_W / 2]) {
-        const y = a.y + dy * sc;
-        ctx.beginPath(); ctx.moveTo(a.x, y); ctx.lineTo(b.x, y); ctx.stroke();
       }
     }
   }
 
-  // ---- space-time strip ----------------------------------------------------
+  function drawNodes(ctx, sc) {
+    const idx = S.idx, sig = C.signals(idx, S.t);
+    const maxLanes = Math.max(1, ...idx.roads.map(r => r.lanes));
+    idx.nodes.forEach((n, ni) => {
+      const p = toScreen(n.x, n.y);
+      const box = 2 * (n.radius || maxLanes * LANE_W) * sc;
+      if (n.control || n.radius) {
+        ctx.fillStyle = PAL.node;
+        ctx.fillRect(p.x - box / 2, p.y - box / 2, box, box);
+      }
+      if (n.control && sc > 0.5) {
+        // one lamp per approach, on the kerb just before the stop line
+        idx.roads.forEach((r, ri) => {
+          if (r.dst !== n.id) return;
+          const st = sig.get(`${ni},${ri}`) || (n.control === 'stop' ? 's' : 'r');
+          const w = C.pointAt(r, Math.max(0, r.length - 1.5), 0, 2.2);
+          const q = toScreen(w.x, w.y);
+          ctx.fillStyle = SIG[st] || PAL.dim;
+          ctx.beginPath(); ctx.arc(q.x, q.y, Math.min(5, Math.max(2, 1.2 * sc)), 0, Math.PI * 2); ctx.fill();
+        });
+      }
+    });
+  }
+
+  // ---- strip ---------------------------------------------------------------
   function stripSize() {
     const r = strip.getBoundingClientRect();
     return { w: Math.round(r.width), h: Math.round(r.height) };
@@ -136,32 +174,51 @@
     const ctx = off.getContext('2d');
     ctx.setTransform(S.DPR, 0, 0, S.DPR, 0, 0);
     ctx.fillStyle = PAL.grid; ctx.fillRect(0, 0, w, h);
-    const idx = S.idx, road = idx.roads[0], L = road.length, T = idx.duration || 1;
-    // minute grid
-    ctx.strokeStyle = PAL.line || '#26303f'; ctx.lineWidth = 1;
+    const idx = S.idx, T = idx.duration || 1;
+    ctx.strokeStyle = PAL.line; ctx.lineWidth = 1;
     ctx.fillStyle = PAL.dim; ctx.font = '9px IBM Plex Mono, monospace'; ctx.textBaseline = 'top';
     for (let t = 60; t < T; t += 60) {
       const x = Math.round((t / T) * w) + 0.5;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       ctx.fillText(fmtTime(t), x + 3, 2);
     }
-    // trajectories
+    const rs = idx.roads;
+    if (rs.length === 1 && rs[0].ring) drawTrajectories(ctx, w, h); else drawSeries(ctx, w, h);
+    S.stripCache = off;
+  }
+  function drawTrajectories(ctx, w, h) {
+    const idx = S.idx, road = idx.roads[0], L = road.length, T = idx.duration || 1, ticks = idx.ticks;
     ctx.lineWidth = 1.2; ctx.lineCap = 'round';
-    const ticks = idx.ticks;
     for (let i = 0; i + 1 < ticks.length; i++) {
       const x0 = (ticks[i].t / T) * w, x1 = (ticks[i + 1].t / T) * w, next = idx.maps[i + 1];
       for (const r of ticks[i].v) {
         const nb = next.get(r[0]);
-        if (!nb || nb[1] !== r[1]) continue;
-        let p0 = r[2], p1 = nb[2];
-        if (road.ring && Math.abs(p1 - p0) > L / 2) continue; // wrapped: skip the seam
-        ctx.strokeStyle = C.speedColor(LUT, (r[3] + nb[3]) / 2, idx.vmax);
+        if (!nb || Math.abs(nb[3] - r[3]) > L / 2) continue; // gone, or wrapped: skip the seam
+        ctx.strokeStyle = C.speedColor(LUT, (r[4] + nb[4]) / 2, idx.vmax);
         ctx.beginPath();
-        ctx.moveTo(x0, h - (p0 / L) * h); ctx.lineTo(x1, h - (p1 / L) * h);
+        ctx.moveTo(x0, h - (r[3] / L) * h); ctx.lineTo(x1, h - (nb[3] / L) * h);
         ctx.stroke();
       }
     }
-    S.stripCache = off;
+  }
+  function drawSeries(ctx, w, h) {
+    const idx = S.idx, T = idx.duration || 1, ser = idx.series;
+    const nmax = Math.max(1, ...ser.map(s => s.n));
+    const pad = 12;
+    ctx.beginPath(); ctx.moveTo(0, h);
+    ser.forEach((s, i) => ctx.lineTo((idx.times[i] / T) * w, h - (s.n / nmax) * (h - pad)));
+    ctx.lineTo(w, h); ctx.closePath();
+    ctx.fillStyle = PAL.line; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+    for (let i = 0; i + 1 < ser.length; i++) {
+      ctx.strokeStyle = C.speedColor(LUT, ser[i].mean, idx.vmax);
+      ctx.beginPath();
+      ctx.moveTo((idx.times[i] / T) * w, h - (ser[i].mean / idx.vmax) * (h - pad));
+      ctx.lineTo((idx.times[i + 1] / T) * w, h - (ser[i + 1].mean / idx.vmax) * (h - pad));
+      ctx.stroke();
+    }
+    ctx.fillStyle = PAL.dim; ctx.textBaseline = 'bottom'; ctx.textAlign = 'right';
+    ctx.fillText(`${nmax} vehicles`, w - 4, h - 2);
   }
   function drawStrip() {
     const { w, h } = stripSize();
@@ -213,6 +270,18 @@
   $('play').addEventListener('click', () => { S.playing = !S.playing; syncPlay(); });
   $('file').addEventListener('change', e => readFile(e.target.files[0]));
 
+  // bundled samples
+  const samples = typeof SAMPLES !== 'undefined' ? SAMPLES : [];
+  for (const s of samples) {
+    const b = document.createElement('button');
+    b.textContent = s.name;
+    b.addEventListener('click', () => { load(s.trace, s.name); markSample(b); });
+    $('samples').appendChild(b);
+  }
+  function markSample(active) {
+    for (const b of $('samples').children) b.classList.toggle('active', b === active);
+  }
+
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT') return;
     if (e.key === ' ') { e.preventDefault(); S.playing = !S.playing; syncPlay(); }
@@ -240,17 +309,17 @@
   scene.addEventListener('pointerdown', e => { S.drag = { x: e.clientX, y: e.clientY }; scene.setPointerCapture(e.pointerId); scene.classList.add('dragging'); });
   scene.addEventListener('pointermove', e => {
     if (!S.drag) return;
-    S.cam.x -= (e.clientX - S.drag.x) / S.cam.scale; S.cam.y -= (e.clientY - S.drag.y) / S.cam.scale;
+    S.cam.x -= (e.clientX - S.drag.x) / S.cam.scale; S.cam.y += (e.clientY - S.drag.y) / S.cam.scale;
     S.drag = { x: e.clientX, y: e.clientY };
   });
   scene.addEventListener('pointerup', () => { S.drag = null; scene.classList.remove('dragging'); });
   scene.addEventListener('wheel', e => {
     if (!S.idx) return;
     e.preventDefault();
-    const v = viewCentre(), k = Math.exp(-e.deltaY * 0.0015);
-    const wx = S.cam.x + (e.clientX - v.cx) / S.cam.scale, wy = S.cam.y + (e.clientY - v.cy) / S.cam.scale;
+    const v = viewCentre(), k = Math.min(1.25, Math.max(0.8, Math.exp(-e.deltaY * 0.0015)));
+    const wx = S.cam.x + (e.clientX - v.cx) / S.cam.scale, wy = S.cam.y - (e.clientY - v.cy) / S.cam.scale;
     S.cam.scale = Math.min(200, Math.max(0.05, S.cam.scale * k));
-    S.cam.x = wx - (e.clientX - v.cx) / S.cam.scale; S.cam.y = wy - (e.clientY - v.cy) / S.cam.scale;
+    S.cam.x = wx - (e.clientX - v.cx) / S.cam.scale; S.cam.y = wy + (e.clientY - v.cy) / S.cam.scale;
   }, { passive: false });
 
   // drag & drop
@@ -290,7 +359,8 @@
   if (url) {
     fetch(url).then(r => r.json()).then(t => load(t, url))
       .catch(err => { $('sub').textContent = `could not load ${url}: ${err.message}`; });
-  } else if (typeof SAMPLE_TRACE !== 'undefined') {
-    load(SAMPLE_TRACE, 'sample');
+  } else if (samples.length) {
+    load(samples[0].trace, samples[0].name);
+    markSample($('samples').firstChild);
   }
 })();

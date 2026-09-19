@@ -7,9 +7,13 @@ from typing import Protocol
 
 class CarFollowingModel(Protocol):
     desired_speed: float
+    min_gap: float
 
-    def acceleration(self, speed: float, gap: float, leader_speed: float) -> float:
-        """Return acceleration in m/s^2. gap is bumper-to-bumper; math.inf means free road."""
+    def acceleration(
+        self, speed: float, gap: float, leader_speed: float, desired_speed: float | None = None
+    ) -> float:
+        """Return acceleration in m/s^2. gap is bumper-to-bumper; math.inf means free road.
+        desired_speed overrides the driver's own (e.g. a lower speed limit)."""
         ...
 
 
@@ -24,13 +28,14 @@ class IDM:
     comfort_decel: float = 1.5
     delta: float = 4.0
 
-    def acceleration(self, speed: float, gap: float, leader_speed: float) -> float:
+    def acceleration(
+        self, speed: float, gap: float, leader_speed: float, desired_speed: float | None = None
+    ) -> float:
+        v0 = self.desired_speed if desired_speed is None else desired_speed
         dv = speed - leader_speed
         dynamic = speed * self.time_headway + speed * dv / (
             2 * math.sqrt(self.max_accel * self.comfort_decel)
         )
         s_star = self.min_gap + max(0.0, dynamic)
         gap = max(gap, 0.01)
-        return self.max_accel * (
-            1 - (speed / self.desired_speed) ** self.delta - (s_star / gap) ** 2
-        )
+        return self.max_accel * (1 - (speed / v0) ** self.delta - (s_star / gap) ** 2)

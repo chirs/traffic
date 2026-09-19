@@ -19,6 +19,7 @@
 <div class="controls" role="group" aria-label="Playback">
   <button id="play" aria-label="Play or pause">▶</button>
   <div class="rates" id="rates"></div>
+  <div class="samples" id="samples"></div>
   <label class="open">open trace<input type="file" id="file" accept=".json,application/json"></label>
 </div>
 
@@ -31,13 +32,15 @@
     <span class="right" id="hHint">space play · ←→ step · [ ] speed · scroll zoom · f fit</span>
   </div>
   <canvas id="strip"></canvas>
-  <div class="axis">time → · position along road ↑ · click or drag to scrub</div>
+  <div class="axis" id="axis"></div>
 </div>
 
 <div id="drop" class="hidden">drop trace</div>
 
 <script src="core.js"></script>
-<script src="sample-trace.js"></script>
+<script>const SAMPLES = [];</script>
+<script src="samples/ring.js"></script>
+<script src="samples/grid.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
