@@ -3,7 +3,7 @@ import json
 
 from .experiment import aggregate, sweep, write_csv
 from .metrics import Metrics
-from .scenarios import grid, ring_road
+from .scenarios import PLACES, grid, place, ring_road
 from .trace import TraceWriter
 
 
@@ -32,17 +32,22 @@ def main() -> None:
     g.add_argument("--control", choices=["signal", "actuated", "stop", "none"], default="signal")
     g.add_argument("--rate", type=float, default=0.08, help="vehicles/s per boundary entry")
 
-    for sp in (ring, g):
+    o = sub.add_parser("place", help="real streets from OpenStreetMap")
+    o.add_argument("--name", dest="place", choices=sorted(PLACES), default="oak_cliff")
+    o.add_argument("--rules", choices=["dallas", "new_york", "netherlands"], default="dallas")
+    o.add_argument("--rate", type=float, default=0.5, help="total vehicles/s entering the area")
+
+    for sp in (ring, g, o):
         sp.add_argument("--duration", type=float, default=600.0)
         sp.add_argument("--seed", type=int, default=0)
         sp.add_argument("--record-every", type=int, default=5, help="steps per recorded tick")
         sp.add_argument("--js-var", default=None, help="emit JS pushing onto this array (www/)")
-        sp.add_argument("--name", default=None, help="sample name shown in the viewer")
+        sp.add_argument("--label", default=None, help="sample name shown in the viewer")
         sp.add_argument("--out", default=None, help="trace file to write")
         sp.add_argument("--summary", default=None, help="metrics JSON to write")
 
     sw = sub.add_parser("sweep", help="run a scenario over parameter values and seeds")
-    sw.add_argument("scenario", choices=["ring", "grid"])
+    sw.add_argument("scenario", choices=["ring", "grid", "place"])
     sw.add_argument(
         "--param",
         action="append",
@@ -75,6 +80,8 @@ def main() -> None:
 
     if args.cmd == "ring":
         sim = ring_road(args.vehicles, length=args.length, seed=args.seed)
+    elif args.cmd == "place":
+        sim = place(args.place, rules=args.rules, rate=args.rate, seed=args.seed)
     else:
         sim = grid(
             rows=args.rows,
@@ -98,7 +105,7 @@ def main() -> None:
     sim.run(args.duration, on_step=on_step)
     summary = metrics.summary()
     if writer:
-        writer.write(args.out, js_var=args.js_var, name=args.name)
+        writer.write(args.out, js_var=args.js_var, name=args.label)
         print(f"wrote {args.out}: {len(writer.ticks)} ticks, {len(writer.vehicles)} vehicles seen")
     if args.summary:
         with open(args.summary, "w") as f:

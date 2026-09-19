@@ -28,7 +28,9 @@ const TrafficCore = (() => {
     const roads = trace.network.roads.map(roadGeometry);
     return {
       trace, ticks, times, maps, lengths, roads,
+      staticStates: new Map((trace.static_states || []).map(([n, r, s]) => [`${n},${r}`, s])),
       nodes: trace.network.nodes,
+      geo: trace.network.geo || null,
       vmax: Math.max(1, vmax),
       duration: times[times.length - 1],
       bounds: bounds(roads),
@@ -151,10 +153,36 @@ const TrafficCore = (() => {
     return out;
   }
 
-  // Signal states at time t as a Map "node,road" -> state.
+  // Control states at time t as a Map "node,road" -> state: static ones plus this tick's signals.
   function signals(idx, t) {
     const k = idx.ticks[findTick(idx.times, t)];
-    return new Map((k.s || []).map(([n, r, s]) => [`${n},${r}`, s]));
+    const out = new Map(idx.staticStates);
+    for (const [n, r, s] of k.s || []) out.set(`${n},${r}`, s);
+    return out;
+  }
+
+  // Local equirectangular projection used by the Python side: metres east/north of (lat0, lon0).
+  const EARTH_R = 6371008.8;
+  function projection(geo) {
+    const kx = EARTH_R * Math.cos(geo.lat * Math.PI / 180) * Math.PI / 180, ky = EARTH_R * Math.PI / 180;
+    return {
+      toWorld: (lat, lon) => ({ x: (lon - geo.lon) * kx, y: (lat - geo.lat) * ky }),
+      toLonLat: (x, y) => ({ lon: geo.lon + x / kx, lat: geo.lat + y / ky }),
+    };
+  }
+  // Web Mercator tile maths (256 px tiles).
+  function tileToLonLat(z, x, y) {
+    const n = 2 ** z;
+    return { lon: x / n * 360 - 180, lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI };
+  }
+  function lonLatToTile(z, lon, lat) {
+    const n = 2 ** z, r = lat * Math.PI / 180;
+    return { x: (lon + 180) / 360 * n, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n };
+  }
+  // Zoom whose tile pixels best match `scale` screen px per metre at this latitude.
+  function tileZoom(scale, lat) {
+    const z = Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) * scale);
+    return Math.max(0, Math.min(19, Math.round(z)));
   }
 
   function stats(vehicles) {
@@ -189,7 +217,8 @@ const TrafficCore = (() => {
     return lut[Math.max(0, Math.min(lut.length - 1, i))];
   }
 
-  return { LANE_W, normalise, index, findTick, lerpPos, sample, signals, ringXY, pointAt, stats, colorRamp, speedColor };
+  return { LANE_W, normalise, index, findTick, lerpPos, sample, signals, ringXY, pointAt, stats, colorRamp, speedColor,
+    projection, tileToLonLat, lonLatToTile, tileZoom };
 })();
 
 if (typeof module !== 'undefined') module.exports = TrafficCore;

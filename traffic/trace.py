@@ -37,21 +37,27 @@ class TraceWriter:
             )
         rows.sort()
         tick = {"t": round(sim.time, 6), "v": rows}
-        signals = []
-        for node in sim.network.nodes.values():
-            if node.control is None:
+        signals = self._states(dynamic=True)
+        if signals:
+            tick["s"] = signals
+        self.ticks.append(tick)
+
+    def _states(self, dynamic: bool) -> list:
+        """[node_index, road_index, state] for every controlled approach; signals are the only
+        controls whose state changes, so they go in each tick and the rest go in the header."""
+        out = []
+        for node in self.sim.network.nodes.values():
+            if node.control is None or (node.control.kind == "signal") != dynamic:
                 continue
-            for road in sim.network.in_roads(node.id):
-                signals.append(
+            for road in self.sim.network.in_roads(node.id):
+                out.append(
                     [
                         self.node_index[node.id],
                         self.road_index[road.id],
                         node.control.state(road.id),
                     ]
                 )
-        if signals:
-            tick["s"] = signals
-        self.ticks.append(tick)
+        return out
 
     def on_step(self, sim: Simulation) -> None:
         self._step += 1
@@ -63,6 +69,7 @@ class TraceWriter:
             "version": VERSION,
             "dt": self.sim.dt * self.record_every,
             "network": self.sim.network.to_dict(),
+            "static_states": self._states(dynamic=False),
             "vehicles": sorted(self.vehicles.values(), key=lambda d: d["id"]),
             "ticks": self.ticks,
         }

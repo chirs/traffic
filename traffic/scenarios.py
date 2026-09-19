@@ -1,15 +1,25 @@
 import random
+from pathlib import Path
 
+from . import osm
 from .control import Signal, StopSign
 from .demand import Spawner, uniform_demand
 from .models import IDM
 from .network import LANE_WIDTH, Network
+from .rules import DALLAS, RULES, Rules
 from .sim import Simulation, Vehicle
+
+DATA = Path(__file__).resolve().parent.parent / "data"
+PLACES = {
+    # south, west, north, east
+    "oak_cliff": (32.742, -96.836, 32.756, -96.820),  # Bishop Arts and surroundings
+}
 
 # Low max_accel puts IDM in its string-unstable regime at moderate density, so a
 # small perturbation grows into stop-and-go waves. Treiber's ring-road demo settings.
 JAM_PRONE = IDM(desired_speed=30.0, time_headway=1.5, min_gap=2.0, max_accel=0.3, comfort_decel=3.0)
 URBAN = IDM(desired_speed=15.0, time_headway=1.2, min_gap=2.0, max_accel=1.2, comfort_decel=2.0)
+CITY = IDM(desired_speed=22.0, time_headway=1.3, min_gap=2.0, max_accel=1.2, comfort_decel=2.0)
 
 
 def ring_road(
@@ -109,4 +119,39 @@ def grid(
     return sim
 
 
-SCENARIOS = {"ring": ring_road, "grid": grid}
+def osm_area(
+    bbox: tuple[float, float, float, float],
+    cache: str | Path,
+    rules: Rules | str = DALLAS,
+    rate: float = 0.5,
+    model: IDM = CITY,
+    seed: int = 0,
+    dt: float = 0.1,
+) -> Simulation:
+    """Real streets from OpenStreetMap inside bbox (south, west, north, east). Traffic enters
+    and leaves at dead ends on the bbox edge; `rate` is the total vehicles/second entering,
+    shared out by each entry's road class and lanes."""
+    if isinstance(rules, str):
+        rules = RULES[rules]
+    rng = random.Random(seed)
+    net = osm.build_network(osm.fetch(bbox, cache), rules, bbox)
+    sim = Simulation(net, dt=dt, seed=seed)
+    weights = osm.boundary_weights(net)
+    origins = [n for n in weights if net.out_roads(n)]
+    dests = [n for n in weights if net.in_roads(n)]
+    total = sum(weights[o] for o in origins)
+    demand = {}
+    for o in origins:
+        others = [d for d in dests if d != o]
+        wsum = sum(weights[d] for d in others)
+        for d in others:
+            demand[(o, d)] = rate * weights[o] / total * weights[d] / wsum
+    sim.spawners = Spawner.from_demand(demand, model, rng)
+    return sim
+
+
+def place(name: str = "oak_cliff", rules: Rules | str = DALLAS, **kw) -> Simulation:
+    return osm_area(PLACES[name], DATA / f"{name}.json", rules=rules, **kw)
+
+
+SCENARIOS = {"ring": ring_road, "grid": grid, "place": place}

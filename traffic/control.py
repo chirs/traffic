@@ -20,8 +20,10 @@ class Signal:
         yellow: float = 3.0,
         all_red: float = 1.0,
         detector: float = 30.0,
+        right_on_red: bool = False,
     ):
         self.phases = [set(p) for p in phases]
+        self.right_on_red = right_on_red
         self.min_green = min_green
         self.max_green = min_green if max_green is None else max_green
         self.yellow = yellow
@@ -60,7 +62,17 @@ class Signal:
         s = self.state(vehicle.road)
         if s == "g":
             return False
-        if s == "r" or vehicle.speed < MOVING:
+        if s == "r":
+            # Stopped at the line and turning right where that is allowed: may go once the
+            # merge onto the cross street is clear (the lookahead handles that part).
+            return not (
+                self.right_on_red
+                and vehicle.next_road is not None
+                and vehicle.speed < 0.5
+                and dist < 3.0
+                and sim.network.turn(vehicle.road, vehicle.next_road) == "right"
+            )
+        if vehicle.speed < MOVING:
             return True
         return dist > vehicle.speed**2 / (2 * COMFORT_STOP)
 
@@ -95,3 +107,35 @@ class StopSign:
         if dist < self.AT_LINE and vehicle.speed < 0.3 and vehicle.id not in self.queue:
             self.queue.append(vehicle.id)
         return True
+
+
+class Priority:
+    """Major roads have right of way; vehicles on minor approaches yield to any major-road
+    vehicle within `gap_time` seconds (or `min_gap` metres) of the node."""
+
+    kind = "priority"
+
+    def __init__(self, major: set[str], gap_time: float = 4.0, min_gap: float = 12.0):
+        self.major = set(major)
+        self.gap_time = gap_time
+        self.min_gap = min_gap
+
+    def update(self, sim, node) -> None:
+        pass
+
+    def state(self, road_id: str) -> str:
+        return "m" if road_id in self.major else "p"
+
+    def must_stop(self, vehicle, dist: float, sim) -> bool:
+        if vehicle.road in self.major:
+            return False
+        for rid in self.major:
+            road = sim.network.roads[rid]
+            for lane in sim.lanes[rid]:
+                if not lane.vehicles:
+                    continue
+                u = lane.vehicles[-1]
+                du = road.length - u.position
+                if du < self.min_gap or (u.speed > 0.5 and du / u.speed < self.gap_time):
+                    return True
+        return False

@@ -11,13 +11,14 @@ it back. No server needed for playback, so the viewer deploys statically.
 Network and trace formats are plain JSON and are the contract between the
 core, the viewer, and the map repos.
 
-## Real Dallas
+## Real places
 
-- [ ] OSM import via `osmnx` into the network format
-- [ ] First neighborhood scenario (Oak Cliff)
-- [ ] Map tiles under the canvas in the viewer
-- [ ] `Rules` object for jurisdiction behavior (speed limits, right on red, priority); Dallas first
-- [ ] Netherlands and New York rule sets
+- [ ] Check inferred signals and stop control against the ground in Oak Cliff; per-place overrides file
+- [ ] Merge sub-5 m segments left by node trimming (62 in Oak Cliff)
+- [ ] Turn restrictions from OSM relations; `turn:lanes`
+- [ ] Netherlands-style priority to the right at uncontrolled equal junctions
+- [ ] More places: a Netherlands town, a Manhattan grid; Dallas arterial corridor
+- [ ] Demand from real counts (TxDOT AADT) instead of class weights
 
 ## Experiments
 

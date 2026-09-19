@@ -32,7 +32,9 @@ stop-and-go waves from a tiny perturbation.
 
 - `traffic/models.py` — `CarFollowingModel` protocol and the IDM implementation
 - `traffic/network.py` — `Network` of `Node`s and directed `Road`s (lanes, speed limits, node radius), shortest paths
-- `traffic/control.py` — intersection control: `Signal` (fixed or actuated) and all-way `StopSign`
+- `traffic/control.py` — intersection control: `Signal` (fixed or actuated, optional right on red), all-way `StopSign`, `Priority`
+- `traffic/osm.py` — Overpass fetch and OSM-to-`Network` import
+- `traffic/rules.py` — jurisdiction `Rules` (Dallas, New York, Netherlands)
 - `traffic/sim.py` — `Vehicle`, `Lane`, `Simulation`: car following, lookahead across nodes, MOBIL-style lane changes, route transitions
 - `traffic/demand.py` — origin-destination `Demand`, `Spawner` (Poisson arrivals, routed by shortest path)
 - `traffic/metrics.py` — `Metrics` collector (delay, throughput, queues)
@@ -40,8 +42,9 @@ stop-and-go waves from a tiny perturbation.
 - `traffic/scenarios.py` — scenario builders (`ring_road`, `grid`) and the `SCENARIOS` registry
 - `traffic/trace.py` — `TraceWriter`
 - `traffic/__main__.py` — CLI
-- `www/core.js` — pure trace logic (indexing, interpolation, road geometry, colour ramp); tested with `node --test`
-- `www/app.js` — canvas rendering, playback, controls
+- `www/core.js` — pure trace logic (indexing, interpolation, road geometry, tile maths, colour ramp); tested with `node --test`
+- `www/app.js` — canvas rendering, map tiles (OSM, inverted to dark), playback, controls
+- `data/*.json` — cached OSM extracts
 - `www/samples/*.js` — **generated** sample traces; never hand-edit
 
 ## Model notes
@@ -65,9 +68,10 @@ front bumpers measured along the road. Lane 0 is the kerb lane.
   "version": 2,
   "dt": 0.5,
   "network": {
+    "geo": {"lat": 32.749, "lon": -96.828},
     "nodes": [{"id": "n0_0", "x": 0.0, "y": 0.0, "radius": 3.6, "control": "signal"}],
     "roads": [{"id": "a>b", "src": "a", "dst": "b", "length": 142.8, "lanes": 1, "ring": false,
-               "points": [[3.6, 0.0], [146.4, 0.0]]}]
+               "kind": "residential", "points": [[3.6, 0.0], [146.4, 0.0]]}]
   },
   "vehicles": [{"id": 0, "length": 5.0}],
   "ticks": [
@@ -77,12 +81,13 @@ front bumpers measured along the road. Lane 0 is the kerb lane.
 ```
 
 - `dt` — seconds between consecutive ticks
+- `network.geo` — lat/lon of the world origin, or null for synthetic networks
 - `network.nodes` / `network.roads` — indexed by position in their arrays; `control` is
-  `signal`, `stop` or null; a ring road has `ring: true` and no nodes
+  `signal`, `stop`, `priority` or null; a ring road has `ring: true` and no nodes
 - `vehicles` — static per-vehicle data, keyed by `id`
 - `ticks[].v` — one row per vehicle present: `[id, road_index, lane, position, speed, accel]`
 - `ticks[].s` — signal states, one row per controlled approach: `[node_index, road_index, state]`
-  with state `g`, `y`, `r` or `s` (stop sign)
+  with state `g`, `y`, `r`, `s` (stop sign), `p` (yield) or `m` (major road, no control)
 
 Vehicles may be absent from a tick (they have not entered or have exited). The viewer still
 reads version 1 traces.

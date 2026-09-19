@@ -24,6 +24,7 @@ const net = {
       { id: 'bc', src: 'b', dst: 'c', length: 100, lanes: 1, ring: false, points: [[100, 0], [100, 100]] },
     ],
   },
+  static_states: [[2, 1, 's']],
   vehicles: [{ id: 7, length: 5 }],
   ticks: [
     { t: 0, v: [[7, 0, 1, 90, 10, 0]], s: [[1, 0, 'g']] },
@@ -100,6 +101,7 @@ test('signals map by node and road', () => {
   const idx = C.index(net);
   assert.equal(C.signals(idx, 0).get('1,0'), 'g');
   assert.equal(C.signals(idx, 1.5).get('1,0'), 'y');
+  assert.equal(C.signals(idx, 1.5).get('2,1'), 's', 'static states are always present');
   assert.deepEqual(idx.series.map(s => s.n), [1, 1]);
 });
 

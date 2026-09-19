@@ -92,3 +92,14 @@ def test_uniform_demand_and_weighted_destinations():
     to_x = sum(1 for v in trips if v.route == ["ox"])
     assert len(trips) > 80 and sim.spawners[0].pending < 5
     assert 0.65 < to_x / len(trips) < 0.85, "roughly 3:1 split, and the origin picks the right road"
+
+
+def test_trace_splits_static_and_signal_states():
+    from traffic.trace import TraceWriter
+
+    sim = grid(rows=2, cols=2, control="stop")
+    d = TraceWriter(sim).to_dict()
+    assert len(d["static_states"]) == 4 * 4 and "s" not in d["ticks"][0]
+    sim = grid(rows=2, cols=2, control="signal")
+    d = TraceWriter(sim).to_dict()
+    assert d["static_states"] == [] and len(d["ticks"][0]["s"]) == 16

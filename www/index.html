@@ -20,8 +20,10 @@
   <button id="play" aria-label="Play or pause">▶</button>
   <div class="rates" id="rates"></div>
   <div class="samples" id="samples"></div>
+  <button id="map" title="map tiles (m)" disabled>map</button>
   <label class="open">open trace<input type="file" id="file" accept=".json,application/json"></label>
 </div>
+<div id="attrib" class="hidden">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</div>
 
 <div class="bottom">
   <div class="hud">
@@ -29,7 +31,7 @@
     <span><b id="hVeh">–</b> vehicles</span>
     <span>mean <b id="hMean">–</b></span>
     <span>min <b id="hMin">–</b></span>
-    <span class="right" id="hHint">space play · ←→ step · [ ] speed · scroll zoom · f fit</span>
+    <span class="right" id="hHint">space play · ←→ step · [ ] speed · scroll zoom · f fit · m map</span>
   </div>
   <canvas id="strip"></canvas>
   <div class="axis" id="axis"></div>
@@ -41,6 +43,7 @@
 <script>const SAMPLES = [];</script>
 <script src="samples/ring.js"></script>
 <script src="samples/grid.js"></script>
+<script src="samples/oak_cliff.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
