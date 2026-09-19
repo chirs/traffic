@@ -57,6 +57,7 @@ test('sample interpolates position and speed, wraps across the seam', () => {
   assert.equal(at(2)[1], undefined, 'and is gone once its last tick is passed');
   assert.equal(idx.duration, 2);
   assert.equal(idx.vmax, 10);
+  assert.equal(idx.units, 'mph', 'default display unit');
 });
 
 test('sample carries a vehicle across a road change and slides between lanes', () => {

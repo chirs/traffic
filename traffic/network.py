@@ -84,6 +84,7 @@ class Network:
         self._out: dict[str, list[str]] = {}
         self._in: dict[str, list[str]] = {}
         self.geo: tuple[float, float] | None = None  # (lat, lon) of the world origin, if any
+        self.speed_unit: str = "mph"  # how the viewer should display speeds: "mph" or "km/h"
         self.boundary: list[str] = []  # node ids where traffic enters and leaves
 
     def add_node(self, id: str, x: float, y: float, control=None, radius: float = 0.0) -> Node:
@@ -173,6 +174,7 @@ class Network:
     def to_dict(self) -> dict:
         return {
             "geo": {"lat": self.geo[0], "lon": self.geo[1]} if self.geo else None,
+            "units": self.speed_unit,
             "nodes": [
                 {
                     "id": n.id,

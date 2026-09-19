@@ -31,6 +31,7 @@ const TrafficCore = (() => {
       staticStates: new Map((trace.static_states || []).map(([n, r, s]) => [`${n},${r}`, s])),
       nodes: trace.network.nodes,
       geo: trace.network.geo || null,
+      units: trace.network.units || 'mph',
       vmax: Math.max(1, vmax),
       duration: times[times.length - 1],
       bounds: bounds(roads),

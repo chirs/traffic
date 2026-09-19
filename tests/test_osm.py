@@ -260,3 +260,9 @@ def test_ways_are_clipped_to_the_bbox():
     net = build_network(osm, DALLAS, bbox)
     assert set(net.nodes) == {"n2", "n3", "n4", "n6", "n7"}, "nodes 1 and 5 lie outside"
     assert set(net.boundary) == {"n2", "n4", "n6", "n7"}
+
+
+def test_speed_unit_follows_rules(net):
+    assert net.speed_unit == "mph"
+    assert build_network(OSM, NETHERLANDS, BBOX).speed_unit == "km/h"
+    assert "units" in net.to_dict()

@@ -109,6 +109,7 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
 
     net = Network()
     net.geo = (lat0, lon0)
+    net.speed_unit = rules.speed_unit
     width_at: dict[int, float] = defaultdict(
         float
     )  # carriageway width of the widest road at a node

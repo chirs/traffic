@@ -137,6 +137,7 @@ front bumpers measured along the road. Lane 0 is the kerb lane.
 
 - `dt` — seconds between consecutive ticks
 - `network.geo` — lat/lon of the world origin, or null for synthetic networks
+- `network.units` — `mph` or `km/h`, how the viewer shows speeds (from the place's rules; mph otherwise)
 - `network.nodes` / `network.roads` — indexed by position in their arrays; `control` is
   `signal`, `stop`, `priority` or null; a ring road has `ring: true` and no nodes
 - `static_states` — `[node_index, road_index, state]` for controls that never change

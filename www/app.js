@@ -314,13 +314,15 @@
     const m = Math.floor(t / 60), s = Math.floor(t % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
   }
-  const kmh = v => `${(v * 3.6).toFixed(0)} km/h`;
+  function fmtSpeed(v) {
+    return S.idx.units === 'km/h' ? `${(v * 3.6).toFixed(0)} km/h` : `${(v * 2.23694).toFixed(0)} mph`;
+  }
   function updateHud(vehicles) {
     const st = C.stats(vehicles);
     $('hTime').textContent = fmtTime(S.t);
     $('hVeh').textContent = st.n;
-    $('hMean').textContent = kmh(st.mean);
-    $('hMin').textContent = kmh(st.min);
+    $('hMean').textContent = fmtSpeed(st.mean);
+    $('hMin').textContent = fmtSpeed(st.min);
   }
   function syncPlay() { $('play').textContent = S.playing ? '❚❚' : '▶'; }
   function setRate(r) {
