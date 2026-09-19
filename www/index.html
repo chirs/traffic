@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<header>
+  <h1>TRAFFIC</h1>
+  <div class="sub" id="sub">drop a trace file, or add <code>?trace=url</code></div>
+</header>
+
+<div class="controls" role="group" aria-label="Playback">
+  <button id="play" aria-label="Play or pause">▶</button>
+  <div class="rates" id="rates"></div>
+  <label class="open">open trace<input type="file" id="file" accept=".json,application/json"></label>
+</div>
+
+<div class="bottom">
+  <div class="hud">
+    <span><b id="hTime">0:00</b></span>
+    <span><b id="hVeh">–</b> vehicles</span>
+    <span>mean <b id="hMean">–</b></span>
+    <span>min <b id="hMin">–</b></span>
+    <span class="right" id="hHint">space play · ←→ step · [ ] speed · scroll zoom · f fit</span>
+  </div>
+  <canvas id="strip"></canvas>
+  <div class="axis">time → · position along road ↑ · click or drag to scrub</div>
+</div>
+
+<div id="drop" class="hidden">drop trace</div>
+
+<script src="core.js"></script>
+<script src="sample-trace.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

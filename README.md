@@ -1,13 +1,26 @@
 # traffic
 
-Microscopic traffic simulator. Python core writes a trace file; a browser canvas
-viewer (planned) plays it back. See [ROADMAP.md](ROADMAP.md).
+Microscopic traffic simulator. Python core writes a trace file; a vanilla-JS canvas
+viewer plays it back. See [ROADMAP.md](ROADMAP.md).
 
 ## Setup
 
     uv sync
     .venv/bin/pytest
+    node --test tests/
     .venv/bin/python -m traffic ring --vehicles 40 --duration 600 --out traces/ring.json
+
+## Viewer
+
+Open `www/index.html` directly (it loads `www/sample-trace.js`) or serve `www/` and pass
+`?trace=path.json`. Drag a trace onto the page or use "open trace" to load another.
+Space plays, arrows step, `[` `]` change speed, scroll zooms, `f` refits. The strip at
+the bottom is a space-time diagram (time across, position up, colour by speed); click or
+drag it to scrub.
+
+Regenerate the bundled sample with
+
+    .venv/bin/python -m traffic ring --duration 400 --record-every 10 --out www/sample-trace.js
 
 The ring scenario reproduces phantom traffic jams: a near-uniform flow breaks into
 stop-and-go waves from a tiny perturbation.
@@ -19,6 +32,9 @@ stop-and-go waves from a tiny perturbation.
 - `traffic/scenarios.py` — scenario builders (`ring_road`)
 - `traffic/trace.py` — `TraceWriter`
 - `traffic/__main__.py` — CLI
+- `www/core.js` — pure trace logic (indexing, interpolation, ring geometry, colour ramp); tested with `node --test`
+- `www/app.js` — canvas rendering, playback, controls
+- `www/sample-trace.js` — **generated** sample trace; never hand-edit
 
 ## Trace format (version 1)
 

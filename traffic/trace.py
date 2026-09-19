@@ -44,7 +44,11 @@ class TraceWriter:
             "ticks": self.ticks,
         }
 
-    def write(self, path: str | Path) -> None:
+    def write(self, path: str | Path, js_var: str | None = None) -> None:
+        """Write JSON, or a JS file assigning the JSON to `js_var` (for loading over file://)."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.to_dict(), separators=(",", ":")))
+        body = json.dumps(self.to_dict(), separators=(",", ":"))
+        if js_var:
+            body = f"const {js_var} = {body};\n"
+        path.write_text(body)

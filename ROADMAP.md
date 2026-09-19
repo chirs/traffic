@@ -11,14 +11,6 @@ it back. No server needed for playback, so the viewer deploys statically.
 Network and trace formats are plain JSON and are the contract between the
 core, the viewer, and the map repos.
 
-## Viewer
-
-- [ ] Vanilla JS canvas app under `www/`, no build step
-- [ ] Load a trace, play/pause, scrub, speed control
-- [ ] Interpolate between ticks for smooth motion
-- [ ] Ring road and straight road rendering
-- [ ] Visual polish: brake lights, speed/density coloring
-
 ## Network
 
 - [ ] Directed graph of roads; nodes are intersections

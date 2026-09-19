@@ -19,7 +19,7 @@ def main() -> None:
     sim = ring_road(args.vehicles, length=args.length, seed=args.seed)
     writer = TraceWriter(sim, record_every=args.record_every)
     sim.run(args.duration, on_step=writer.on_step)
-    writer.write(args.out)
+    writer.write(args.out, js_var="SAMPLE_TRACE" if args.out.endswith(".js") else None)
     speeds = [v.speed for v in sim.vehicles]
     print(
         f"wrote {args.out}: {len(writer.ticks)} ticks, "
