@@ -11,16 +11,6 @@ it back. No server needed for playback, so the viewer deploys statically.
 Network and trace formats are plain JSON and are the contract between the
 core, the viewer, and the map repos.
 
-## Core: single road
-
-- [ ] Project scaffold: `pyproject.toml`, `.venv`, ruff, pytest
-- [ ] `CarFollowingModel` protocol; IDM as first implementation
-- [ ] `Vehicle`, `Lane`, `Road` with fixed-timestep integration, seeded RNG
-- [ ] Ring road scenario reproducing phantom jams
-- [ ] Trace writer (per-tick vehicle positions, speeds; JSON to start)
-- [ ] Tests: no collisions, vehicle count conserved, jam emerges at known density
-- [ ] Document network and trace JSON formats in README
-
 ## Viewer
 
 - [ ] Vanilla JS canvas app under `www/`, no build step

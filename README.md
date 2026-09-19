@@ -1,44 +1,50 @@
-Repo about traffic
+# traffic
 
-traffic simulation
+Microscopic traffic simulator. Python core writes a trace file; a browser canvas
+viewer (planned) plays it back. See [ROADMAP.md](ROADMAP.md).
 
-https://en.wikipedia.org/wiki/Traffic_simulation
+## Setup
 
+    uv sync
+    .venv/bin/pytest
+    .venv/bin/python -m traffic ring --vehicles 40 --duration 600 --out traces/ring.json
 
-monte carlo method
+The ring scenario reproduces phantom traffic jams: a near-uniform flow breaks into
+stop-and-go waves from a tiny perturbation.
 
-cellular automata
+## Layout
 
-discrete event / continuous time simulation
+- `traffic/models.py` — `CarFollowingModel` protocol and the IDM implementation
+- `traffic/sim.py` — `Vehicle`, `Road`, `Lane`, `Simulation` (fixed timestep)
+- `traffic/scenarios.py` — scenario builders (`ring_road`)
+- `traffic/trace.py` — `TraceWriter`
+- `traffic/__main__.py` — CLI
 
-Intelligent Driver model
+## Trace format (version 1)
 
-Gipps' Model
+JSON. All units SI (metres, seconds). Positions are front bumpers measured along the road.
 
+```json
+{
+  "version": 1,
+  "dt": 0.5,
+  "network": {"roads": [{"id": "ring", "length": 1000.0, "ring": true}]},
+  "vehicles": [{"id": 0, "length": 5.0}],
+  "ticks": [
+    {"t": 0.0, "v": [[0, 0, 12.345, 11.9, -0.02]]}
+  ]
+}
+```
 
+- `dt` — seconds between consecutive ticks
+- `network.roads` — indexed by position in the array
+- `vehicles` — static per-vehicle data, keyed by `id`
+- `ticks[].v` — one row per vehicle present: `[id, road_index, position, speed, accel]`
 
+Vehicles may be absent from a tick (they have not entered or have exited).
 
-### Traffic laws
+## Background
 
-
-dallas traffic laws
-
-netherlands traffic laws
-
-new york traffic laws
-
-### Roads
-
-dallas roads
-
-netherlands roads
-
-new york roads
-
-### Related
-
-traffic engineering
-
-transportation planning
-
-
+- https://en.wikipedia.org/wiki/Traffic_simulation
+- Intelligent Driver Model (Treiber, Hennecke, Helbing 2000)
+- Gipps' model, Nagel–Schreckenberg cellular automaton (planned as alternative models)
