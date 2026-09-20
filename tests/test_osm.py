@@ -266,3 +266,17 @@ def test_speed_unit_follows_rules(net):
     assert net.speed_unit == "mph"
     assert build_network(OSM, NETHERLANDS, BBOX).speed_unit == "km/h"
     assert "units" in net.to_dict()
+
+
+def test_clip_polygon_trims_and_sets_boundary():
+    from traffic.osm import dist_to_edges, point_in_polygon
+
+    tri = [(0.0, 0.0), (0.0, 10.0), (10.0, 0.0)]
+    assert point_in_polygon(2.0, 2.0, tri) and not point_in_polygon(8.0, 8.0, tri)
+    assert dist_to_edges(1.0, 1.0, [(0, 0), (10, 0), (10, 10), (0, 10)]) == pytest.approx(1.0)
+    # keep only the part of the test network west of node 9
+    east = LON + 1.3 * DLON  # 33 m east of nodes 5 and 6
+    poly = [(BBOX[0], BBOX[1]), (BBOX[0], east), (BBOX[2], east), (BBOX[2], BBOX[1])]
+    net = build_network(OSM, DALLAS, BBOX, clip=poly)
+    assert set(net.nodes) == {"n1", "n2", "n3", "n4", "n5", "n6", "n7"}
+    assert set(net.boundary) == {"n1", "n3", "n5", "n7"}, "dead ends near the polygon edge"

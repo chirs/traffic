@@ -20,6 +20,33 @@ BOUNDARY_MARGIN = 40.0  # metres inside the bbox edge within which a dead end co
 CLIP_MARGIN = 0.0003  # degrees (~30 m) of slack when clipping ways to the bbox
 
 BBox = tuple[float, float, float, float]  # south, west, north, east
+Polygon = list[tuple[float, float]]  # (lat, lon) vertices
+
+
+def point_in_polygon(lat: float, lon: float, poly: Polygon) -> bool:
+    inside = False
+    n = len(poly)
+    for i in range(n):
+        (y0, x0), (y1, x1) = poly[i], poly[(i + 1) % n]
+        if (y0 > lat) != (y1 > lat) and lon < x0 + (lat - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
+def dist_to_edges(x: float, y: float, ring: list[tuple[float, float]]) -> float:
+    """Distance from (x, y) to the nearest edge of a closed ring of projected points."""
+    best = math.inf
+    n = len(ring)
+    for i in range(n):
+        (ax, ay), (bx, by) = ring[i], ring[(i + 1) % n]
+        dx, dy = bx - ax, by - ay
+        t = (
+            0.0
+            if dx == dy == 0
+            else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
+        )
+        best = min(best, math.hypot(x - (ax + t * dx), y - (ay + t * dy)))
+    return best
 
 
 def overpass_query(bbox: BBox) -> str:
@@ -78,7 +105,11 @@ def _lanes(tags: dict, rules: Rules, kind: str, oneway: bool) -> tuple[int, int]
     return (fwd or default, bwd or default)
 
 
-def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
+def build_network(
+    osm: dict, rules: Rules, bbox: BBox | None = None, clip: Polygon | None = None
+) -> Network:
+    """clip, if given, is a (lat, lon) polygon inside bbox: only ways inside it are kept and
+    traffic enters and leaves at dead ends near its edge instead of the bbox's."""
     elements = osm["elements"]
     coords = {e["id"]: (e["lat"], e["lon"]) for e in elements if e["type"] == "node"}
     node_tags = {e["id"]: e.get("tags", {}) for e in elements if e["type"] == "node"}
@@ -90,7 +121,9 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
         and len(e["nodes"]) >= 2
         and all(n in coords for n in e["nodes"])
     ]
-    if bbox:
+    if clip:
+        ways = clip_ways(ways, coords, bbox, clip)
+    elif bbox:
         ways = clip_ways(ways, coords, bbox)
 
     if bbox:
@@ -190,27 +223,32 @@ def build_network(osm: dict, rules: Rules, bbox: BBox | None = None) -> Network:
             elif len(approaches) >= 3:
                 node.control = StopSign()
 
-    if bbox:
-        sw, ne = proj(bbox[0], bbox[1]), proj(bbox[2], bbox[3])
+    if clip or bbox:
+        if clip:
+            ring = [proj(lat, lon) for lat, lon in clip]
+        else:
+            s, w, n, e = bbox
+            ring = [proj(s, w), proj(s, e), proj(n, e), proj(n, w)]
         for nid, node in net.nodes.items():
             degree = len(net.in_roads(nid)) + len(net.out_roads(nid))
-            near_edge = (
-                min(node.x - sw[0], ne[0] - node.x, node.y - sw[1], ne[1] - node.y)
-                < BOUNDARY_MARGIN
-            )
-            if 1 <= degree <= 2 and near_edge:
+            if 1 <= degree <= 2 and dist_to_edges(node.x, node.y, ring) < BOUNDARY_MARGIN:
                 net.boundary.append(nid)
     return net
 
 
-def clip_ways(ways: list[dict], coords: dict, bbox: BBox) -> list[dict]:
-    """Overpass returns whole ways that touch the bbox; keep only the runs of nodes inside it
-    (plus a little slack), each run as its own way. Runs shorter than two nodes are dropped."""
+def clip_ways(
+    ways: list[dict], coords: dict, bbox: BBox, clip: Polygon | None = None
+) -> list[dict]:
+    """Overpass returns whole ways that touch the bbox; keep only the runs of nodes inside the
+    bbox (plus a little slack) or, if given, the clip polygon, each run as its own way. Runs
+    shorter than two nodes are dropped."""
     s, w, n, e = bbox
     s, w, n, e = s - CLIP_MARGIN, w - CLIP_MARGIN, n + CLIP_MARGIN, e + CLIP_MARGIN
 
     def inside(nid):
         lat, lon = coords[nid]
+        if clip:
+            return point_in_polygon(lat, lon, clip)
         return s <= lat <= n and w <= lon <= e
 
     out = []

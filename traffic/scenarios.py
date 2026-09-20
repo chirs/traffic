@@ -20,6 +20,23 @@ PLACES = {
     ),  # Illinois to 12th, centred on Vernon
     "oak_cliff": (32.742, -96.836, 32.756, -96.820),  # Bishop Arts and surroundings
 }
+# Optional (lat, lon) polygons that trim a place inside its bbox.
+PLACE_CLIPS = {
+    # Everything west of I-35E: the east side runs about 60 m west of the mainlanes, which
+    # also drops Zang (the frontage road here) and Brookhaven.
+    "vernon_ferndale": [
+        (32.7195, -96.8496),
+        (32.7195, -96.8289),
+        (32.7230, -96.8280),
+        (32.7260, -96.8268),
+        (32.7290, -96.8263),
+        (32.7320, -96.8256),
+        (32.7350, -96.8249),
+        (32.7390, -96.8247),
+        (32.7422, -96.8247),
+        (32.7422, -96.8496),
+    ],
+}
 
 # Low max_accel puts IDM in its string-unstable regime at moderate density, so a
 # small perturbation grows into stop-and-go waves. Treiber's ring-road demo settings.
@@ -131,16 +148,17 @@ def osm_area(
     rules: Rules | str = DALLAS,
     rate: float = 0.5,
     model: IDM = CITY,
+    clip: list[tuple[float, float]] | None = None,
     seed: int = 0,
     dt: float = 0.1,
 ) -> Simulation:
-    """Real streets from OpenStreetMap inside bbox (south, west, north, east). Traffic enters
-    and leaves at dead ends on the bbox edge; `rate` is the total vehicles/second entering,
-    shared out by each entry's road class and lanes."""
+    """Real streets from OpenStreetMap inside bbox (south, west, north, east), trimmed to the
+    `clip` polygon if given. Traffic enters and leaves at dead ends on the edge; `rate` is the
+    total vehicles/second entering, shared out by each entry's road class and lanes."""
     if isinstance(rules, str):
         rules = RULES[rules]
     rng = random.Random(seed)
-    net = osm.build_network(osm.fetch(bbox, cache), rules, bbox)
+    net = osm.build_network(osm.fetch(bbox, cache), rules, bbox, clip)
     sim = Simulation(net, dt=dt, seed=seed)
     weights = osm.boundary_weights(net)
     origins = [n for n in weights if net.out_roads(n)]
@@ -157,7 +175,9 @@ def osm_area(
 
 
 def place(name: str = "vernon_ferndale", rules: Rules | str = DALLAS, **kw) -> Simulation:
-    return osm_area(PLACES[name], DATA / f"{name}.json", rules=rules, **kw)
+    return osm_area(
+        PLACES[name], DATA / f"{name}.json", rules=rules, clip=PLACE_CLIPS.get(name), **kw
+    )
 
 
 SCENARIOS = {"ring": ring_road, "grid": grid, "place": place}

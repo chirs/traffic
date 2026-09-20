@@ -61,8 +61,9 @@ more approaches are all-way stops. Traffic enters and leaves at dead ends within
 bbox edge, weighted by road class and lanes.
 
 Places so far: `vernon_ferndale` (Oak Cliff from Illinois Avenue north to 12th Street,
-centred on Vernon and Ferndale; the default) and `oak_cliff` (Bishop Arts). Add one by putting
-its bbox in `PLACES` in `traffic/scenarios.py`; the extract is fetched on first use.
+centred on Vernon and Ferndale, everything west of I-35E; the default) and `oak_cliff`
+(Bishop Arts). Add one by putting its bbox in `PLACES` in `traffic/scenarios.py`, plus an
+optional `PLACE_CLIPS` polygon to trim it; the extract is fetched on first use.
 
 ## Demand and metrics
 
